@@ -100,22 +100,17 @@ class CLexer(object):
     ## Reserved keywords
     ##
     keywords = (
-        '_BOOL', '_COMPLEX', 'AUTO', 'BREAK', 'CASE', 'CHAR', 'CONST',
-        'CONTINUE', 'DEFAULT', 'DO', 'DOUBLE', 'ELSE', 'ENUM', 'EXTERN',
-        'FLOAT', 'FOR', 'GOTO', 'IF', 'INLINE', 'INT', 'LONG', 'REGISTER',
-        'RESTRICT', 'RETURN', 'SHORT', 'SIGNED', 'SIZEOF', 'STATIC', 'STRUCT',
-        'SWITCH', 'TYPEDEF', 'UNION', 'UNSIGNED', 'VOID',
-        'VOLATILE', 'WHILE',
+        'BREAK', 'CASE',
+        'CONTINUE', 'DEFAULT', 'DO', 'ELSE', 'ENUM',
+        'FOR', 'GOTO', 'IF', 'INT',
+        'RETURN', 'STRUCT',
+        'SWITCH', 'TYPEDEF', 'UNION',
+        'WHILE',
     )
 
     keyword_map = {}
     for keyword in keywords:
-        if keyword == '_BOOL':
-            keyword_map['_Bool'] = keyword
-        elif keyword == '_COMPLEX':
-            keyword_map['_Complex'] = keyword
-        else:
-            keyword_map[keyword.lower()] = keyword
+        keyword_map[keyword.lower()] = keyword
 
     ##
     ## All the tokens recognized by the lexer
@@ -130,31 +125,17 @@ class CLexer(object):
 
         # constants
         'INT_CONST_DEC', 'INT_CONST_OCT', 'INT_CONST_HEX',
-        'FLOAT_CONST', 'HEX_FLOAT_CONST',
-        'CHAR_CONST',
-        'WCHAR_CONST',
-
-        # String literals
-        'STRING_LITERAL',
-        'WSTRING_LITERAL',
 
         # Operators
-        'PLUS', 'MINUS', 'TIMES', 'DIVIDE', 'MOD',
-        'OR', 'AND', 'NOT', 'XOR', 'LSHIFT', 'RSHIFT',
+        'PLUS', 'MINUS',
         'LOR', 'LAND', 'LNOT',
         'LT', 'LE', 'GT', 'GE', 'EQ', 'NE',
 
         # Assignment
-        'EQUALS', 'TIMESEQUAL', 'DIVEQUAL', 'MODEQUAL',
-        'PLUSEQUAL', 'MINUSEQUAL',
-        'LSHIFTEQUAL','RSHIFTEQUAL', 'ANDEQUAL', 'XOREQUAL',
-        'OREQUAL',
+        'EQUALS',
 
         # Increment/decrement
         'PLUSPLUS', 'MINUSMINUS',
-
-        # Structure dereference (->)
-        'ARROW',
 
         # Conditional operator (?)
         'CONDOP',
@@ -165,9 +146,6 @@ class CLexer(object):
         'LBRACE', 'RBRACE',         # { }
         'COMMA', 'PERIOD',          # . ,
         'SEMI', 'COLON',            # ; :
-
-        # Ellipsis (...)
-        'ELLIPSIS',
 
         # pre-processor
         'PPHASH',      # '#'

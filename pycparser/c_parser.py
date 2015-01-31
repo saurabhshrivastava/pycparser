@@ -88,7 +88,6 @@ class CParser(PLYParser):
             'parameter_type_list',
             'specifier_qualifier_list',
             'block_item_list',
-            'type_qualifier_list',
             'struct_declarator_list'
         ]
 
@@ -474,14 +473,9 @@ class CParser(PLYParser):
     precedence = (
         ('left', 'LOR'),
         ('left', 'LAND'),
-        ('left', 'OR'),
-        ('left', 'XOR'),
-        ('left', 'AND'),
         ('left', 'EQ', 'NE'),
         ('left', 'GT', 'GE', 'LT', 'LE'),
-        ('left', 'RSHIFT', 'LSHIFT'),
         ('left', 'PLUS', 'MINUS'),
-        ('left', 'TIMES', 'DIVIDE', 'MOD')
     )
 
     ##
@@ -670,11 +664,6 @@ class CParser(PLYParser):
         """
         p[0] = p[1] if len(p) == 2 else p[1] + p[2]
 
-    def p_declaration_specifiers_1(self, p):
-        """ declaration_specifiers  : type_qualifier declaration_specifiers_opt
-        """
-        p[0] = self._add_declaration_specifier(p[2], p[1], 'qual')
-
     def p_declaration_specifiers_2(self, p):
         """ declaration_specifiers  : type_specifier declaration_specifiers_opt
         """
@@ -685,37 +674,13 @@ class CParser(PLYParser):
         """
         p[0] = self._add_declaration_specifier(p[2], p[1], 'storage')
 
-    def p_declaration_specifiers_4(self, p):
-        """ declaration_specifiers  : function_specifier declaration_specifiers_opt
-        """
-        p[0] = self._add_declaration_specifier(p[2], p[1], 'function')
-
     def p_storage_class_specifier(self, p):
-        """ storage_class_specifier : AUTO
-                                    | REGISTER
-                                    | STATIC
-                                    | EXTERN
-                                    | TYPEDEF
-        """
-        p[0] = p[1]
-
-    def p_function_specifier(self, p):
-        """ function_specifier  : INLINE
+        """ storage_class_specifier : TYPEDEF
         """
         p[0] = p[1]
 
     def p_type_specifier_1(self, p):
-        """ type_specifier  : VOID
-                            | _BOOL
-                            | CHAR
-                            | SHORT
-                            | INT
-                            | LONG
-                            | FLOAT
-                            | DOUBLE
-                            | _COMPLEX
-                            | SIGNED
-                            | UNSIGNED
+        """ type_specifier  : INT
         """
         p[0] = c_ast.IdentifierType([p[1]], coord=self._coord(p.lineno(1)))
 
@@ -723,13 +688,6 @@ class CParser(PLYParser):
         """ type_specifier  : typedef_name
                             | enum_specifier
                             | struct_or_union_specifier
-        """
-        p[0] = p[1]
-
-    def p_type_qualifier(self, p):
-        """ type_qualifier  : CONST
-                            | RESTRICT
-                            | VOLATILE
         """
         p[0] = p[1]
 
@@ -765,11 +723,6 @@ class CParser(PLYParser):
                             | declarator EQUALS initializer
         """
         p[0] = dict(decl=p[1], init=(p[3] if len(p) > 2 else None))
-
-    def p_specifier_qualifier_list_1(self, p):
-        """ specifier_qualifier_list    : type_qualifier specifier_qualifier_list_opt
-        """
-        p[0] = self._add_declaration_specifier(p[2], p[1], 'qual')
 
     def p_specifier_qualifier_list_2(self, p):
         """ specifier_qualifier_list    : type_specifier specifier_qualifier_list_opt
@@ -948,26 +901,10 @@ class CParser(PLYParser):
         """
         p[0] = p[1]
 
-    def p_declarator_2(self, p):
-        """ declarator  : pointer direct_declarator
-        """
-        p[0] = self._type_modify_decl(p[2], p[1])
-
     # Since it's impossible for a type to be specified after a pointer, assume
     # it's intended to be the name for this declaration.  _add_identifier will
     # raise an error if this TYPEID can't be redeclared.
     #
-    def p_declarator_3(self, p):
-        """ declarator  : pointer TYPEID
-        """
-        decl = c_ast.TypeDecl(
-            declname=p[2],
-            type=None,
-            quals=None,
-            coord=self._coord(p.lineno(2)))
-
-        p[0] = self._type_modify_decl(decl, p[1])
-
     def p_direct_declarator_1(self, p):
         """ direct_declarator   : ID
         """
@@ -984,39 +921,17 @@ class CParser(PLYParser):
 
     def p_direct_declarator_3(self, p):
         """ direct_declarator   : direct_declarator LBRACKET assignment_expression_opt RBRACKET
-                                | direct_declarator LBRACKET STATIC assignment_expression_opt RBRACKET
-                                | direct_declarator LBRACKET CONST assignment_expression_opt RBRACKET
-        """
-        if len(p) > 5:
-            # Have dimension qualifiers
-            # Per C99 6.7.5.3 p7
-            arr = c_ast.ArrayDecl(
-                type=None,
-                dim=p[4],
-                dim_quals=[p[3]],
-                coord=p[1].coord)
-        else:
-            arr = c_ast.ArrayDecl(
-                type=None,
-                dim=p[3],
-                dim_quals=[],
-                coord=p[1].coord)
-
-        p[0] = self._type_modify_decl(decl=p[1], modifier=arr)
-
-    # Special for VLAs
-    #
-    def p_direct_declarator_4(self, p):
-        """ direct_declarator   : direct_declarator LBRACKET TIMES RBRACKET
         """
         arr = c_ast.ArrayDecl(
             type=None,
-            dim=c_ast.ID(p[3], self._coord(p.lineno(3))),
+            dim=p[3],
             dim_quals=[],
             coord=p[1].coord)
 
         p[0] = self._type_modify_decl(decl=p[1], modifier=arr)
 
+    # Special for VLAs
+    #
     def p_direct_declarator_5(self, p):
         """ direct_declarator   : direct_declarator LPAREN parameter_type_list RPAREN
                                 | direct_declarator LPAREN identifier_list_opt RPAREN
@@ -1045,30 +960,9 @@ class CParser(PLYParser):
 
         p[0] = self._type_modify_decl(decl=p[1], modifier=func)
 
-    def p_pointer(self, p):
-        """ pointer : TIMES type_qualifier_list_opt
-                    | TIMES type_qualifier_list_opt pointer
-        """
-        coord = self._coord(p.lineno(1))
-
-        p[0] = c_ast.PtrDecl(
-            quals=p[2] or [],
-            type=p[3] if len(p) > 3 else None,
-            coord=coord)
-
-    def p_type_qualifier_list(self, p):
-        """ type_qualifier_list : type_qualifier
-                                | type_qualifier_list type_qualifier
-        """
-        p[0] = [p[1]] if len(p) == 2 else p[1] + [p[2]]
-
     def p_parameter_type_list(self, p):
         """ parameter_type_list : parameter_list
-                                | parameter_list COMMA ELLIPSIS
         """
-        if len(p) > 2:
-            p[1].params.append(c_ast.EllipsisParam(self._coord(p.lineno(3))))
-
         p[0] = p[1]
 
     def p_parameter_list(self, p):
@@ -1191,19 +1085,6 @@ class CParser(PLYParser):
 
         p[0] = self._fix_decl_name_type(typename, p[1]['type'])
 
-    def p_abstract_declarator_1(self, p):
-        """ abstract_declarator     : pointer
-        """
-        dummytype = c_ast.TypeDecl(None, None, None)
-        p[0] = self._type_modify_decl(
-            decl=dummytype,
-            modifier=p[1])
-
-    def p_abstract_declarator_2(self, p):
-        """ abstract_declarator     : pointer direct_abstract_declarator
-        """
-        p[0] = self._type_modify_decl(p[2], p[1])
-
     def p_abstract_declarator_3(self, p):
         """ abstract_declarator     : direct_abstract_declarator
         """
@@ -1235,26 +1116,6 @@ class CParser(PLYParser):
         p[0] = c_ast.ArrayDecl(
             type=c_ast.TypeDecl(None, None, None),
             dim=p[2],
-            dim_quals=[],
-            coord=self._coord(p.lineno(1)))
-
-    def p_direct_abstract_declarator_4(self, p):
-        """ direct_abstract_declarator  : direct_abstract_declarator LBRACKET TIMES RBRACKET
-        """
-        arr = c_ast.ArrayDecl(
-            type=None,
-            dim=c_ast.ID(p[3], self._coord(p.lineno(3))),
-            dim_quals=[],
-            coord=p[1].coord)
-
-        p[0] = self._type_modify_decl(decl=p[1], modifier=arr)
-
-    def p_direct_abstract_declarator_5(self, p):
-        """ direct_abstract_declarator  : LBRACKET TIMES RBRACKET
-        """
-        p[0] = c_ast.ArrayDecl(
-            type=c_ast.TypeDecl(None, None, None),
-            dim=c_ast.ID(p[3], self._coord(p.lineno(3))),
             dim_quals=[],
             coord=self._coord(p.lineno(1)))
 
@@ -1400,16 +1261,6 @@ class CParser(PLYParser):
     #
     def p_assignment_operator(self, p):
         """ assignment_operator : EQUALS
-                                | XOREQUAL
-                                | TIMESEQUAL
-                                | DIVEQUAL
-                                | MODEQUAL
-                                | PLUSEQUAL
-                                | MINUSEQUAL
-                                | LSHIFTEQUAL
-                                | RSHIFTEQUAL
-                                | ANDEQUAL
-                                | OREQUAL
         """
         p[0] = p[1]
 
@@ -1428,22 +1279,14 @@ class CParser(PLYParser):
 
     def p_binary_expression(self, p):
         """ binary_expression   : cast_expression
-                                | binary_expression TIMES binary_expression
-                                | binary_expression DIVIDE binary_expression
-                                | binary_expression MOD binary_expression
                                 | binary_expression PLUS binary_expression
                                 | binary_expression MINUS binary_expression
-                                | binary_expression RSHIFT binary_expression
-                                | binary_expression LSHIFT binary_expression
                                 | binary_expression LT binary_expression
                                 | binary_expression LE binary_expression
                                 | binary_expression GE binary_expression
                                 | binary_expression GT binary_expression
                                 | binary_expression EQ binary_expression
                                 | binary_expression NE binary_expression
-                                | binary_expression AND binary_expression
-                                | binary_expression OR binary_expression
-                                | binary_expression XOR binary_expression
                                 | binary_expression LAND binary_expression
                                 | binary_expression LOR binary_expression
         """
@@ -1471,21 +1314,9 @@ class CParser(PLYParser):
         """
         p[0] = c_ast.UnaryOp(p[1], p[2], p[2].coord)
 
-    def p_unary_expression_3(self, p):
-        """ unary_expression    : SIZEOF unary_expression
-                                | SIZEOF LPAREN type_name RPAREN
-        """
-        p[0] = c_ast.UnaryOp(
-            p[1],
-            p[2] if len(p) == 3 else p[3],
-            self._coord(p.lineno(1)))
-
     def p_unary_operator(self, p):
-        """ unary_operator  : AND
-                            | TIMES
-                            | PLUS
+        """ unary_operator  : PLUS
                             | MINUS
-                            | NOT
                             | LNOT
         """
         p[0] = p[1]
@@ -1507,8 +1338,6 @@ class CParser(PLYParser):
     def p_postfix_expression_4(self, p):
         """ postfix_expression  : postfix_expression PERIOD ID
                                 | postfix_expression PERIOD TYPEID
-                                | postfix_expression ARROW ID
-                                | postfix_expression ARROW TYPEID
         """
         field = c_ast.ID(p[3], self._coord(p.lineno(3)))
         p[0] = c_ast.StructRef(p[1], p[2], field, p[1].coord)
@@ -1531,12 +1360,6 @@ class CParser(PLYParser):
 
     def p_primary_expression_2(self, p):
         """ primary_expression  : constant """
-        p[0] = p[1]
-
-    def p_primary_expression_3(self, p):
-        """ primary_expression  : unified_string_literal
-                                | unified_wstring_literal
-        """
         p[0] = p[1]
 
     def p_primary_expression_4(self, p):
@@ -1564,47 +1387,6 @@ class CParser(PLYParser):
         """
         p[0] = c_ast.Constant(
             'int', p[1], self._coord(p.lineno(1)))
-
-    def p_constant_2(self, p):
-        """ constant    : FLOAT_CONST
-                        | HEX_FLOAT_CONST
-        """
-        p[0] = c_ast.Constant(
-            'float', p[1], self._coord(p.lineno(1)))
-
-    def p_constant_3(self, p):
-        """ constant    : CHAR_CONST
-                        | WCHAR_CONST
-        """
-        p[0] = c_ast.Constant(
-            'char', p[1], self._coord(p.lineno(1)))
-
-    # The "unified" string and wstring literal rules are for supporting
-    # concatenation of adjacent string literals.
-    # I.e. "hello " "world" is seen by the C compiler as a single string literal
-    # with the value "hello world"
-    #
-    def p_unified_string_literal(self, p):
-        """ unified_string_literal  : STRING_LITERAL
-                                    | unified_string_literal STRING_LITERAL
-        """
-        if len(p) == 2: # single literal
-            p[0] = c_ast.Constant(
-                'string', p[1], self._coord(p.lineno(1)))
-        else:
-            p[1].value = p[1].value[:-1] + p[2][1:]
-            p[0] = p[1]
-
-    def p_unified_wstring_literal(self, p):
-        """ unified_wstring_literal : WSTRING_LITERAL
-                                    | unified_wstring_literal WSTRING_LITERAL
-        """
-        if len(p) == 2: # single literal
-            p[0] = c_ast.Constant(
-                'string', p[1], self._coord(p.lineno(1)))
-        else:
-            p[1].value = p[1].value.rstrip()[:-1] + p[2][2:]
-            p[0] = p[1]
 
     def p_brace_open(self, p):
         """ brace_open  :   LBRACE
